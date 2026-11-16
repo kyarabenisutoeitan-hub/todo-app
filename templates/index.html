@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row">
+  <h1 style="font-size:1.3rem">やること一覧（{{ todos|length }}件）</h1>
+  <a class="btn" href="{{ url_for('new') }}">＋ 登録</a>
+</div>
+
+{% for t in todos %}
+  {# 期日を過ぎたものは赤くする #}
+  <div class="card {% if t.due and t.due < today %}over{% endif %}">
+    <div class="row">
+      <h2>{{ t.title }}</h2>
+      <a class="btn sub" href="{{ url_for('edit', todo_id=t.id) }}">編集</a>
+    </div>
+    <div class="due">期日：{{ t.due or "なし" }}{% if t.due and t.due < today %}（過ぎています）{% endif %}</div>
+    {% if t.body %}<div class="body">{{ t.body }}</div>{% endif %}
+  </div>
+{% else %}
+  <p class="empty">まだやることはありません。「＋ 登録」から追加してください。</p>
+{% endfor %}
+{% endblock %}

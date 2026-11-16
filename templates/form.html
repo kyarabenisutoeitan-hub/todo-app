@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+{# 登録と編集で同じ画面を使う #}
+<h1 style="font-size:1.3rem">{% if mode == "edit" %}やることを編集{% else %}やることを登録{% endif %}</h1>
+
+{% if errors %}
+  <div class="errors">{% for e in errors %}<div>{{ e }}</div>{% endfor %}</div>
+{% endif %}
+
+<form method="post">
+  <label for="title">タイトル</label>
+  <input id="title" name="title" value="{{ todo.title or '' }}" required>
+
+  <label for="body">内容</label>
+  <textarea id="body" name="body">{{ todo.body or '' }}</textarea>
+
+  <label for="due">期日</label>
+  <input id="due" name="due" type="date" value="{{ todo.due or '' }}" required>
+
+  <p style="margin-top:20px">
+    <button class="btn" type="submit">保存</button>
+    <a class="btn sub" href="{{ url_for('index') }}">もどる</a>
+  </p>
+</form>
+{% endblock %}

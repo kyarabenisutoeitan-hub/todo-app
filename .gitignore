@@ -1,0 +1,4 @@
+# Google の鍵は絶対に GitHub に上げない
+credentials.json
+__pycache__/
+.venv/
