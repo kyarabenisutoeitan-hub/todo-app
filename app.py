@@ -2,11 +2,13 @@
 
 やること（タイトル・内容・期日）を Google スプレッドシートに保存する Flask アプリ。
 ページは「一覧」「登録」「編集」の3つ。
-課題2で「完了と削除」を追加。
+課題2で「完了と削除」「期日前の LINE 通知」を追加。
 """
 
 import json
 import os
+import secrets
+import urllib.request
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
@@ -31,6 +33,61 @@ JST = timezone(timedelta(hours=9))
 def today_jst():
     """日本時間の今日の日付を「2026-11-16」の形で返す"""
     return datetime.now(JST).date().isoformat()
+
+
+# ---- 課題2：期日前の LINE 通知 ----
+# 通知専用 LINE から自分に送る。鍵は Render の環境変数に入れておく
+#   LINE_CHANNEL_TOKEN：通知専用 LINE のチャネルアクセストークン
+#   LINE_TO：送り先（自分）の LINE のユーザーID
+#   NOTIFY_KEY：/notify を開くための合言葉（知らない人に送らせないため）
+LINE_PUSH_URL = "https://api.line.me/v2/bot/message/push"
+APP_URL = "https://todo-app-nfnq.onrender.com"
+
+
+def short_date(iso):
+    """「2026-11-07」を「11/7」にする"""
+    d = date.fromisoformat(iso)
+    return f"{d.month}/{d.day}"
+
+
+def build_notice(todos, today):
+    """未完了で、期日が過ぎている・今日・明日のものを1通の文にする（なければ None）"""
+    tomorrow = (date.fromisoformat(today) + timedelta(days=1)).isoformat()
+    groups = {"over": [], "today": [], "tomorrow": []}
+    for t in todos:
+        if t["done"] or not t["due"]:
+            continue
+        line = f"・{t['title']}（{short_date(t['due'])}）"
+        if t["due"] < today:
+            groups["over"].append(line)
+        elif t["due"] == today:
+            groups["today"].append(line)
+        elif t["due"] == tomorrow:
+            groups["tomorrow"].append(line)
+    if not any(groups.values()):
+        return None
+    parts = ["【Todo】今日・明日のやること"]
+    for key, label in [("over", "⚠ 期日を過ぎています"), ("today", "📌 今日"),
+                       ("tomorrow", "🗓 明日")]:
+        if groups[key]:
+            parts.append(label + "\n" + "\n".join(groups[key]))
+    parts.append(APP_URL)
+    return "\n\n".join(parts)
+
+
+def push_line(text):
+    """通知専用 LINE から自分に1通送る"""
+    body = {"to": os.environ["LINE_TO"], "messages": [{"type": "text", "text": text}]}
+    req = urllib.request.Request(
+        LINE_PUSH_URL,
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + os.environ["LINE_CHANNEL_TOKEN"],
+        },
+        method="POST",
+    )
+    urllib.request.urlopen(req, timeout=20)
 
 
 def get_sheet():
@@ -171,6 +228,22 @@ def delete(todo_id):
         abort(404)
     ws.delete_rows(row)
     return redirect(url_for("index"))
+
+
+@app.route("/notify")
+def notify():
+    """毎朝、目覚まし役（Apps Script）がこのページを開くと、LINE で通知を送る
+    ?dry=1 を付けると送らずに、送る文だけを画面に出す（確かめる用）"""
+    key = os.environ.get("NOTIFY_KEY", "")
+    if not key or not secrets.compare_digest(request.args.get("key", ""), key):
+        abort(403)
+    text = build_notice(load_todos(get_sheet()), today_jst())
+    if text is None:
+        return "送るものはありません"
+    if request.args.get("dry"):
+        return text, 200, {"Content-Type": "text/plain; charset=utf-8"}
+    push_line(text)
+    return "送りました"
 
 
 if __name__ == "__main__":
