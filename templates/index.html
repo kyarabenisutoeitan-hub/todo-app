@@ -9,7 +9,13 @@
   {# 期日を過ぎたものは赤くする #}
   <div class="card {% if t.due and t.due < today %}over{% endif %}">
     <div class="row">
-      <h2>{{ t.title }}</h2>
+      <div class="row" style="justify-content:flex-start">
+        {# 完了ボタン：押すと「済んだもの」に移る #}
+        <form method="post" action="{{ url_for('toggle_done', todo_id=t.id) }}">
+          <button class="check" type="submit" title="完了にする"></button>
+        </form>
+        <h2>{{ t.title }}</h2>
+      </div>
       <a class="btn sub" href="{{ url_for('edit', todo_id=t.id) }}">編集</a>
     </div>
     <div class="due">期日：{{ t.due or "なし" }}{% if t.due and t.due < today %}（過ぎています）{% endif %}</div>
@@ -18,4 +24,24 @@
 {% else %}
   <p class="empty">まだやることはありません。「＋ 登録」から追加してください。</p>
 {% endfor %}
+
+{% if done_todos %}
+  {# 完了したもの：うすい色で下にまとめて出す #}
+  <h2 class="section">済んだもの（{{ done_todos|length }}件）</h2>
+  {% for t in done_todos %}
+    <div class="card done">
+      <div class="row">
+        <div class="row" style="justify-content:flex-start">
+          {# もう一度押すと、未完了に戻る #}
+          <form method="post" action="{{ url_for('toggle_done', todo_id=t.id) }}">
+            <button class="check" type="submit" title="未完了に戻す">✓</button>
+          </form>
+          <h2>{{ t.title }}</h2>
+        </div>
+        <a class="btn sub" href="{{ url_for('edit', todo_id=t.id) }}">編集</a>
+      </div>
+      <div class="due">期日：{{ t.due or "なし" }}　完了：{{ t.done }}</div>
+    </div>
+  {% endfor %}
+{% endif %}
 {% endblock %}

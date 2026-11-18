@@ -2,6 +2,7 @@
 
 やること（タイトル・内容・期日）を Google スプレッドシートに保存する Flask アプリ。
 ページは「一覧」「登録」「編集」の3つ。
+課題2で「完了と削除」を追加。
 """
 
 import json
@@ -18,7 +19,8 @@ app = Flask(__name__)
 SHEET_ID = os.environ.get("SHEET_ID", "")
 
 # 1行目の見出し。列の順番はこの通り
-HEADER = ["ID", "タイトル", "内容", "期日", "登録日"]
+# 完了日：空なら未完了、日付が入っていれば完了（課題2で追加）
+HEADER = ["ID", "タイトル", "内容", "期日", "登録日", "完了日"]
 
 _client = None
 
@@ -44,12 +46,13 @@ def get_sheet():
             _client = gspread.service_account(filename="credentials.json")
     ws = _client.open_by_key(SHEET_ID).sheet1
     if ws.row_values(1) != HEADER:
-        ws.update(range_name="A1:E1", values=[HEADER], value_input_option="RAW")
+        # A1 から右へ見出しを書く（列が増えても、ここは直さなくてよい）
+        ws.update(range_name="A1", values=[HEADER], value_input_option="RAW")
     return ws
 
 
 def load_todos(ws):
-    """全部のやることを、期日の近い順に並べて返す"""
+    """全部のやることを返す（未完了は期日の近い順、完了は完了日の新しい順）"""
     rows = ws.get_all_values()[1:]  # 1行目（見出し）は飛ばす
     todos = []
     for r in rows:
@@ -57,10 +60,13 @@ def load_todos(ws):
         if not r[0]:
             continue
         todos.append(
-            {"id": r[0], "title": r[1], "body": r[2], "due": r[3], "created": r[4]}
+            {"id": r[0], "title": r[1], "body": r[2], "due": r[3], "created": r[4],
+             "done": r[5]}
         )
     # 期日が空のものは最後に
     todos.sort(key=lambda t: (t["due"] == "", t["due"]))
+    # 完了したものは、最近完了したものが上に来るように並べ直す
+    todos.sort(key=lambda t: t["done"], reverse=True)
     return todos
 
 
@@ -96,7 +102,11 @@ def read_form():
 def index():
     """一覧のページ"""
     todos = load_todos(get_sheet())
-    return render_template("index.html", todos=todos, today=today_jst())
+    # 未完了と完了に分けて、画面では別々に出す
+    open_todos = [t for t in todos if not t["done"]]
+    done_todos = [t for t in todos if t["done"]]
+    return render_template("index.html", todos=open_todos, done_todos=done_todos,
+                           today=today_jst())
 
 
 @app.route("/new", methods=["GET", "POST"])
@@ -137,6 +147,30 @@ def edit(todo_id):
     r = (ws.row_values(row) + [""] * len(HEADER))[: len(HEADER)]
     todo = {"id": r[0], "title": r[1], "body": r[2], "due": r[3]}
     return render_template("form.html", todo=todo, errors=[], mode="edit")
+
+
+@app.route("/done/<todo_id>", methods=["POST"])
+def toggle_done(todo_id):
+    """完了ボタン：未完了なら今日の日付を入れて完了に、完了なら空にして戻す"""
+    ws = get_sheet()
+    row = find_row(ws, todo_id)
+    if row is None:
+        abort(404)
+    current = ws.acell(f"F{row}").value or ""
+    new_value = "" if current else today_jst()
+    ws.update(range_name=f"F{row}", values=[[new_value]], value_input_option="RAW")
+    return redirect(url_for("index"))
+
+
+@app.route("/delete/<todo_id>", methods=["POST"])
+def delete(todo_id):
+    """削除ボタン：その行をシートから消す"""
+    ws = get_sheet()
+    row = find_row(ws, todo_id)
+    if row is None:
+        abort(404)
+    ws.delete_rows(row)
+    return redirect(url_for("index"))
 
 
 if __name__ == "__main__":

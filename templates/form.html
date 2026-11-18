@@ -7,7 +7,8 @@
   <div class="errors">{% for e in errors %}<div>{{ e }}</div>{% endfor %}</div>
 {% endif %}
 
-<form method="post">
+{# 保存を2回押しても2件入らないように、1回押したらボタンを押せなくする #}
+<form method="post" onsubmit="var b=this.querySelector('button[type=submit]'); b.disabled=true; b.textContent='保存中…';">
   <label for="title">タイトル</label>
   <input id="title" name="title" value="{{ todo.title or '' }}" required>
 
@@ -22,4 +23,13 @@
     <a class="btn sub" href="{{ url_for('index') }}">もどる</a>
   </p>
 </form>
+
+{% if mode == "edit" %}
+  {# 削除ボタン：一覧で間違えて押さないように、編集画面にだけ置く #}
+  <form method="post" action="{{ url_for('delete', todo_id=todo.id) }}"
+        onsubmit="return confirm('このやることを消します。元に戻せません。よろしいですか？');"
+        style="margin-top:32px; border-top:1px solid #e7e5e4; padding-top:16px">
+    <button class="btn danger" type="submit">このやることを削除</button>
+  </form>
+{% endif %}
 {% endblock %}
