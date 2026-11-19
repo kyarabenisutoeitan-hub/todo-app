@@ -5,6 +5,13 @@
   <a class="btn" href="{{ url_for('new') }}">＋ 登録</a>
 </div>
 
+{# 並べ方の切りかえ：期日順／重要度順 #}
+<div class="sort">
+  並べ方：
+  <a class="{% if sort == 'due' %}on{% endif %}" href="{{ url_for('index') }}">期日順</a>
+  <a class="{% if sort == 'priority' %}on{% endif %}" href="{{ url_for('index', sort='priority') }}">重要度順</a>
+</div>
+
 {% for t in todos %}
   {# 期日を過ぎたものは赤くする #}
   <div class="card {% if t.due and t.due < today %}over{% endif %}">
@@ -14,6 +21,8 @@
         <form method="post" action="{{ url_for('toggle_done', todo_id=t.id) }}">
           <button class="check" type="submit" title="完了にする"></button>
         </form>
+        {# 重要度：高は赤、中は黄、低は灰色 #}
+        <span class="prio prio-{{ {'高': 1, '中': 2, '低': 3}[t.priority] }}">{{ t.priority }}</span>
         <h2>{{ t.title }}</h2>
       </div>
       <a class="btn sub" href="{{ url_for('edit', todo_id=t.id) }}">編集</a>

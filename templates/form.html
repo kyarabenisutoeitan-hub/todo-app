@@ -18,6 +18,17 @@
   <label for="due">期日</label>
   <input id="due" name="due" type="date" value="{{ todo.due or '' }}" required>
 
+  {# 重要度：高・中・低から選ぶ #}
+  <label>重要度</label>
+  <div class="prio-choice">
+    {% for p in priorities %}
+      <label class="prio-option">
+        <input type="radio" name="priority" value="{{ p }}" {% if todo.priority == p %}checked{% endif %}>
+        <span class="prio prio-{{ loop.index }}">{{ p }}</span>
+      </label>
+    {% endfor %}
+  </div>
+
   <p style="margin-top:20px">
     <button class="btn" type="submit">保存</button>
     <a class="btn sub" href="{{ url_for('index') }}">もどる</a>

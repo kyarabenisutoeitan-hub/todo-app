@@ -2,7 +2,7 @@
 
 やること（タイトル・内容・期日）を Google スプレッドシートに保存する Flask アプリ。
 ページは「一覧」「登録」「編集」の3つ。
-課題2で「完了と削除」「期日前の LINE 通知」を追加。
+課題2で「完了と削除」「期日前の LINE 通知」「重要度と並べ替え」を追加。
 """
 
 import json
@@ -22,7 +22,12 @@ SHEET_ID = os.environ.get("SHEET_ID", "")
 
 # 1行目の見出し。列の順番はこの通り
 # 完了日：空なら未完了、日付が入っていれば完了（課題2で追加）
-HEADER = ["ID", "タイトル", "内容", "期日", "登録日", "完了日"]
+# 重要度：高・中・低（空のときは「中」として扱う）（課題2で追加）
+HEADER = ["ID", "タイトル", "内容", "期日", "登録日", "完了日", "重要度"]
+
+# 重要度の選び方と、重要度順に並べるときの順番
+PRIORITIES = ["高", "中", "低"]
+DEFAULT_PRIORITY = "中"
 
 _client = None
 
@@ -118,7 +123,7 @@ def load_todos(ws):
             continue
         todos.append(
             {"id": r[0], "title": r[1], "body": r[2], "due": r[3], "created": r[4],
-             "done": r[5]}
+             "done": r[5], "priority": r[6] if r[6] in PRIORITIES else DEFAULT_PRIORITY}
         )
     # 期日が空のものは最後に
     todos.sort(key=lambda t: (t["due"] == "", t["due"]))
@@ -141,8 +146,11 @@ def read_form():
         "title": request.form.get("title", "").strip(),
         "body": request.form.get("body", "").strip(),
         "due": request.form.get("due", "").strip(),
+        "priority": request.form.get("priority", DEFAULT_PRIORITY),
     }
     errors = []
+    if todo["priority"] not in PRIORITIES:
+        errors.append("重要度は 高・中・低 から選んでください")
     if not todo["title"]:
         errors.append("タイトルを入れてください")
     if not todo["due"]:
@@ -162,8 +170,14 @@ def index():
     # 未完了と完了に分けて、画面では別々に出す
     open_todos = [t for t in todos if not t["done"]]
     done_todos = [t for t in todos if t["done"]]
+    # 並べ方：?sort=priority なら重要度順（同じ重要度の中は期日順のまま）、それ以外は期日順
+    sort = request.args.get("sort", "due")
+    if sort == "priority":
+        open_todos.sort(key=lambda t: PRIORITIES.index(t["priority"]))
+    else:
+        sort = "due"
     return render_template("index.html", todos=open_todos, done_todos=done_todos,
-                           today=today_jst())
+                           today=today_jst(), sort=sort)
 
 
 @app.route("/new", methods=["GET", "POST"])
@@ -172,15 +186,17 @@ def new():
     if request.method == "POST":
         todo, errors = read_form()
         if errors:
-            return render_template("form.html", todo=todo, errors=errors, mode="new")
+            return render_template("form.html", todo=todo, errors=errors, mode="new",
+                                   priorities=PRIORITIES)
         ws = get_sheet()
         ws.append_row(
             [uuid.uuid4().hex[:8], todo["title"], todo["body"], todo["due"],
-             today_jst()],
+             today_jst(), "", todo["priority"]],
             value_input_option="RAW",  # 日付を文字のまま保存する
         )
         return redirect(url_for("index"))
-    return render_template("form.html", todo={}, errors=[], mode="new")
+    return render_template("form.html", todo={"priority": DEFAULT_PRIORITY}, errors=[],
+                           mode="new", priorities=PRIORITIES)
 
 
 @app.route("/edit/<todo_id>", methods=["GET", "POST"])
@@ -194,16 +210,23 @@ def edit(todo_id):
         todo, errors = read_form()
         todo["id"] = todo_id
         if errors:
-            return render_template("form.html", todo=todo, errors=errors, mode="edit")
-        ws.update(
-            range_name=f"B{row}:D{row}",
-            values=[[todo["title"], todo["body"], todo["due"]]],
+            return render_template("form.html", todo=todo, errors=errors, mode="edit",
+                                   priorities=PRIORITIES)
+        # タイトル・内容・期日（B〜D列）と重要度（G列）を、1回でまとめて書く
+        ws.batch_update(
+            [
+                {"range": f"B{row}:D{row}",
+                 "values": [[todo["title"], todo["body"], todo["due"]]]},
+                {"range": f"G{row}", "values": [[todo["priority"]]]},
+            ],
             value_input_option="RAW",
         )
         return redirect(url_for("index"))
     r = (ws.row_values(row) + [""] * len(HEADER))[: len(HEADER)]
-    todo = {"id": r[0], "title": r[1], "body": r[2], "due": r[3]}
-    return render_template("form.html", todo=todo, errors=[], mode="edit")
+    todo = {"id": r[0], "title": r[1], "body": r[2], "due": r[3],
+            "priority": r[6] if r[6] in PRIORITIES else DEFAULT_PRIORITY}
+    return render_template("form.html", todo=todo, errors=[], mode="edit",
+                           priorities=PRIORITIES)
 
 
 @app.route("/done/<todo_id>", methods=["POST"])

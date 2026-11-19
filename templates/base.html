@@ -36,6 +36,21 @@
     .card.done h2 { text-decoration: line-through; }
     .section { font-size: 1.1rem; margin-top: 32px; color: #57534e; }
     .btn.danger { background: #b91c1c; }
+    /* 課題2：重要度と並べ替え */
+    .prio { display: inline-block; min-width: 2em; text-align: center; padding: 2px 8px;
+            border-radius: 999px; font-size: .85rem; font-weight: bold; }
+    .prio-1 { background: #fee2e2; color: #b91c1c; }
+    .prio-2 { background: #fef3c7; color: #92400e; }
+    .prio-3 { background: #e7e5e4; color: #57534e; }
+    .prio-choice { display: flex; gap: 10px; }
+    .prio-option { display: flex; align-items: center; gap: 6px; font-weight: normal; margin: 0;
+                   border: 1px solid #d6d3d1; border-radius: 8px; padding: 8px 14px; cursor: pointer;
+                   background: #fff; }
+    .prio-option input { width: auto; }
+    .sort { margin: 4px 0 8px; color: #57534e; }
+    .sort a { display: inline-block; padding: 6px 12px; border-radius: 999px; text-decoration: none;
+              color: #0f766e; border: 1px solid #0f766e; margin-left: 4px; }
+    .sort a.on { background: #0f766e; color: #fff; }
   </style>
 </head>
 <body>
